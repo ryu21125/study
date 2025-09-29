@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>算数クイズアプリ</title>
+    <!-- Tailwind CSS を CDN から読み込み -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts (Inter) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Tone.js (音声合成ライブラリ) を CDN から読み込み -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <style>
+        /* より滑らかなアニメーション効果 */
+        .fade-in {
+            animation: fadeIn 0.6s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        /* 日本語と英字でフォントを使い分ける */
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+        }
+        /* カスタムのガラス効果 (ダークモード版) */
+        .glass-card {
+            background: rgba(30, 41, 59, 0.5); /* slate-800 with transparency */
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        /* 入力欄の数字送りボタンを非表示にする */
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+        /* トグルスイッチのカスタムスタイル */
+        .toggle-checkbox:checked {
+            transform: translateX(1rem); /* 1rem = 16px */
+            border-color: #3b82f6; /* blue-500 */
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #3b82f6; /* blue-500 */
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 to-gray-900 text-slate-200 flex items-center justify-center min-h-screen font-sans p-4">
+
+    <div class="container mx-auto p-4 max-w-lg">
+
+        <!-- 設定画面 -->
+        <div id="setup-screen" class="glass-card p-8 rounded-2xl shadow-2xl shadow-blue-900/40 fade-in">
+            <h1 class="text-3xl font-bold mb-6 text-center text-slate-100 tracking-tight">算数クイズ設定</h1>
+            
+            <div class="mb-6">
+                <div class="flex justify-between items-center mb-2">
+                    <label for="problems-input" class="text-md font-medium text-slate-400">計算式を入力 (1行に1問):</label>
+                    <div>
+                        <button id="preset1-btn" class="text-sm bg-slate-700 hover:bg-slate-600 text-slate-300 py-1 px-3 rounded-md transition">プリセット1</button>
+                    </div>
+                </div>
+                <textarea id="problems-input" rows="8" class="w-full p-3 border border-slate-600 rounded-lg bg-slate-800/50 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition shadow-inner" placeholder="例:&#10;12 + 8&#10;100 - 25&#10;7 * 9&#10;81 / 3"></textarea>
+            </div>
+
+            <div class="mb-6">
+                <label for="time-limit-input" class="block mb-2 text-md font-medium text-slate-400">制限時間 (秒):</label>
+                <input type="number" id="time-limit-input" value="60" min="10" class="w-full p-3 border border-slate-600 rounded-lg bg-slate-800/50 text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition shadow-inner">
+            </div>
+            
+            <!-- オプション設定 -->
+            <div class="grid grid-cols-2 gap-4 mb-8">
+                <div class="flex items-center justify-center">
+                    <label for="feedback-toggle" class="text-md font-medium text-slate-400 mr-3">即時判定</label>
+                    <div class="relative inline-block w-10 align-middle select-none transition duration-200 ease-in">
+                        <input type="checkbox" name="toggle" id="feedback-toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-slate-700 appearance-none cursor-pointer transition-transform duration-200 ease-in-out"/>
+                        <label for="feedback-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-slate-700 cursor-pointer transition-colors"></label>
+                    </div>
+                </div>
+                <div class="flex items-center justify-center">
+                    <label for="random-toggle" class="text-md font-medium text-slate-400 mr-3">ランダム</label>
+                    <div class="relative inline-block w-10 align-middle select-none transition duration-200 ease-in">
+                        <input type="checkbox" name="toggle" id="random-toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-slate-700 appearance-none cursor-pointer transition-transform duration-200 ease-in-out"/>
+                        <label for="random-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-slate-700 cursor-pointer transition-colors"></label>
+                    </div>
+                </div>
+            </div>
+
+            <button id="start-btn" class="w-full flex items-center justify-center bg-blue-600 text-white py-3 px-6 rounded-lg text-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-400/50 transition-all duration-300 transform hover:scale-105 shadow-lg shadow-blue-500/30">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                テスト開始
+            </button>
+            <p id="setup-error" class="text-red-400 mt-4 text-center h-5"></p>
+        </div>
+
+        <!-- クイズ画面 -->
+        <div id="quiz-screen" class="hidden glass-card p-8 rounded-2xl shadow-2xl shadow-blue-900/40 fade-in">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-slate-300">問題 <span id="problem-number"></span></h2>
+                <div class="text-lg font-bold bg-red-500/20 text-red-400 px-4 py-1.5 rounded-full" id="timer"></div>
+            </div>
+            
+            <div class="mb-6 text-center">
+                <p id="problem-text" class="text-6xl font-mono p-6 bg-slate-900/50 rounded-lg text-slate-100"></p>
+            </div>
+            
+            <div class="mb-4">
+                <label for="answer-input" class="block mb-2 text-md font-medium text-slate-400">あなたの答え:</label>
+                <input type="number" id="answer-input" class="w-full p-3 border border-slate-600 rounded-lg text-3xl text-center bg-slate-800/50 text-slate-200 focus:ring-2 focus:ring-green-500 focus:border-green-500 transition shadow-inner">
+            </div>
+
+            <!-- 即時判定のフィードバック表示エリア -->
+            <div id="feedback-container" class="h-8 mb-4 text-center text-lg font-bold"></div>
+
+            <button id="submit-btn" class="w-full flex items-center justify-center bg-blue-600 text-white py-3 px-6 rounded-lg text-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-400/50 transition-transform transform hover:scale-105 shadow-lg shadow-blue-500/30 disabled:opacity-50 disabled:scale-100">
+                <!-- ボタンテキストはJSで設定 -->
+            </button>
+        </div>
+
+        <!-- 結果画面 -->
+        <div id="results-screen" class="hidden glass-card p-8 rounded-2xl shadow-2xl shadow-blue-900/40 fade-in">
+             <div class="text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 inline-block text-blue-500" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19.5,9H17V7A5,5,0,0,0,7,7V9H4.5A2.5,2.5,0,0,0,2,11.5V19a2.5,2.5,0,0,0,2.5,2.5h15A2.5,2.5,0,0,0,22,19V11.5A2.5,2.5,0,0,0,19.5,9ZM9,7a3,3,0,0,1,6,0V9H9Z"></path>
+                    <path d="M12,12.5a2.5,2.5,0,1,0,2.5,2.5A2.5,2.5,0,0,0,12,12.5Z"></path>
+                </svg>
+                <h1 class="text-3xl font-bold mt-2 mb-6 text-center text-slate-100 tracking-tight">テスト結果</h1>
+            </div>
+            
+            <div class="bg-slate-800 border-l-4 border-blue-500 text-slate-100 p-4 rounded-lg mb-6 text-center">
+                <p class="text-2xl font-semibold">正解数: <span id="score" class="font-bold"></span></p>
+            </div>
+            
+            <div id="results-details" class="space-y-3 max-h-60 overflow-y-auto pr-2">
+                <!-- 結果の詳細がここに表示されます -->
+            </div>
+            
+            <button id="restart-btn" class="w-full flex items-center justify-center mt-8 bg-slate-700 text-white py-3 px-6 rounded-lg text-lg font-semibold hover:bg-slate-600 focus:outline-none focus:ring-4 focus:ring-slate-500/50 transition-transform transform hover:scale-105 shadow-lg shadow-slate-500/30">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 110 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm10 8a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 111.885-.666A5.002 5.002 0 0014.001 13H11a1 1 0 01-1-1z" clip-rule="evenodd" />
+                </svg>
+                もう一度挑戦する
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // DOM要素の取得
+        const setupScreen = document.getElementById('setup-screen');
+        const quizScreen = document.getElementById('quiz-screen');
+        const resultsScreen = document.getElementById('results-screen');
+
+        const startBtn = document.getElementById('start-btn');
+        const submitBtn = document.getElementById('submit-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const preset1Btn = document.getElementById('preset1-btn');
+
+        const problemsInput = document.getElementById('problems-input');
+        const timeLimitInput = document.getElementById('time-limit-input');
+        const setupError = document.getElementById('setup-error');
+        const feedbackToggle = document.getElementById('feedback-toggle');
+        const randomToggle = document.getElementById('random-toggle');
+        
+        const problemNumberEl = document.getElementById('problem-number');
+        const problemTextEl = document.getElementById('problem-text');
+        const answerInput = document.getElementById('answer-input');
+        const timerEl = document.getElementById('timer');
+        const feedbackContainer = document.getElementById('feedback-container');
+        
+        const scoreEl = document.getElementById('score');
+        const resultsDetailsEl = document.getElementById('results-details');
+
+        // --- 効果音の準備 ---
+        // 正解音：明るく心地よいサイン波
+        const correctSound = new Tone.Synth({
+            oscillator: { type: 'sine' },
+            envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 0.5 }
+        }).toDestination();
+
+        // 不正解音：低く短い矩形波
+        const incorrectSound = new Tone.Synth({
+            oscillator: { type: 'square' },
+            envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.5 }
+        }).toDestination();
+
+
+        // クイズの状態を管理する変数
+        let problems = [];
+        let correctAnswers = [];
+        let userAnswers = [];
+        let currentProblemIndex = 0;
+        let timerInterval;
+        let timeLeft = 0;
+        let isInstantFeedbackMode = false;
+        let isRandomMode = false;
+
+        // プリセット問題の定義
+        const preset1Problems = `27 + 8\n36 + 7\n48 + 6\n59 + 5\n64 + 9\n73 + 8\n85 + 4\n91 + 7\n44 + 9\n67 + 8\n29 + 6\n53 + 7\n72 + 9\n38 + 5\n46 + 8\n45 - 7\n63 - 9\n82 - 8\n71 - 6\n94 - 7\n58 - 9\n66 - 8\n77 - 5\n83 - 9\n92 - 6\n64 - 7\n75 - 8\n51 - 9\n89 - 7\n68 - 6\n7 * 6\n8 * 4\n9 * 3\n6 * 8\n5 * 9\n7 * 7\n4 * 9\n3 * 8\n6 * 9\n8 * 7\n56 / 7\n63 / 9\n45 / 5\n72 / 8\n54 / 6\n36 / 9\n64 / 8\n42 / 7\n81 / 9\n48 / 6`;
+
+        // イベントリスナーの設定
+        startBtn.addEventListener('click', startQuiz);
+        submitBtn.addEventListener('click', submitAnswer);
+        restartBtn.addEventListener('click', restartQuiz);
+        preset1Btn.addEventListener('click', () => {
+            problemsInput.value = preset1Problems;
+        });
+        answerInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                submitBtn.click();
+            }
+        });
+
+        /**
+         * Fisher-Yates (aka Knuth) Shuffle
+         * 配列をシャッフルする関数
+         * @param {Array} array シャッフルしたい配列
+         */
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        /**
+         * クイズを開始する関数（非同期処理）
+         */
+        async function startQuiz() {
+            // ユーザー操作をきっかけにオーディオコンテキストを開始
+            await Tone.start();
+
+            const rawProblems = problemsInput.value.split('\n').filter(p => p.trim() !== '');
+
+            if (rawProblems.length === 0) {
+                setupError.textContent = '問題を入力してください。';
+                return;
+            }
+            
+            let quizItems = [];
+            try {
+                quizItems = rawProblems.map(p => {
+                    const sanitizedProblem = p.replace(/[^-()\d/*+.]/g, '');
+                    const answer = eval(sanitizedProblem);
+                    if (typeof answer !== 'number' || !isFinite(answer)) {
+                        throw new Error(`無効な計算式です: ${p}`);
+                    }
+                    return { problem: p, answer: answer };
+                });
+            } catch (error) {
+                setupError.textContent = '計算式に誤りがあります。';
+                console.error(error);
+                return;
+            }
+            
+            isRandomMode = randomToggle.checked;
+            if (isRandomMode) {
+                shuffleArray(quizItems);
+            }
+
+            problems = quizItems.map(item => item.problem);
+            correctAnswers = quizItems.map(item => item.answer);
+
+            setupError.textContent = '';
+            timeLeft = parseInt(timeLimitInput.value, 10);
+            isInstantFeedbackMode = feedbackToggle.checked;
+            
+            const nextArrowSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>`;
+            submitBtn.innerHTML = isInstantFeedbackMode ? '判定' : `次の問題へ ${nextArrowSVG}`;
+
+            currentProblemIndex = 0;
+            userAnswers = [];
+            
+            setupScreen.classList.add('hidden');
+            quizScreen.classList.remove('hidden');
+            resultsScreen.classList.add('hidden');
+
+            displayProblem();
+            startTimer();
+        }
+
+        /**
+         * 問題を表示する関数
+         */
+        function displayProblem() {
+            if (currentProblemIndex < problems.length) {
+                problemNumberEl.textContent = `${currentProblemIndex + 1} / ${problems.length}`;
+                const problemString = problems[currentProblemIndex];
+                const displayString = problemString.replace(/\*/g, '×').replace(/\//g, '÷');
+                problemTextEl.textContent = displayString + " = ?";
+                answerInput.value = '';
+                answerInput.focus();
+            } else {
+                showResults();
+            }
+        }
+
+        /**
+         * 回答を送信し、モードに応じて処理を分岐させる関数
+         */
+        function submitAnswer() {
+            if (submitBtn.disabled) return;
+
+            const submittedAnswer = answerInput.value;
+            userAnswers.push(submittedAnswer);
+
+            if (isInstantFeedbackMode) {
+                handleInstantFeedback(submittedAnswer);
+            } else {
+                goToNextProblem();
+            }
+        }
+        
+        /**
+         * 即時判定モードの処理（効果音を追加）
+         */
+        function handleInstantFeedback(submittedAnswer) {
+            submitBtn.disabled = true;
+            answerInput.disabled = true;
+
+            const userAnswerNum = parseFloat(submittedAnswer);
+            const correctAnswer = correctAnswers[currentProblemIndex];
+            const isCorrect = userAnswerNum === correctAnswer;
+            
+            feedbackContainer.innerHTML = '';
+            const feedbackEl = document.createElement('p');
+            if (isCorrect) {
+                feedbackEl.textContent = '正解！';
+                feedbackEl.className = 'text-green-400';
+                correctSound.triggerAttackRelease("C5", "8n"); // 正解音を再生
+            } else {
+                const displayCorrectAnswer = String(correctAnswer);
+                feedbackEl.textContent = `不正解... 正解は ${displayCorrectAnswer} でした`;
+                feedbackEl.className = 'text-red-400';
+                incorrectSound.triggerAttackRelease("C3", "8n"); // 不正解音を再生
+            }
+            feedbackContainer.appendChild(feedbackEl);
+            
+            setTimeout(() => {
+                feedbackContainer.innerHTML = '';
+                if (currentProblemIndex < problems.length -1) {
+                    submitBtn.disabled = false;
+                    answerInput.disabled = false;
+                }
+                goToNextProblem();
+            }, 1500);
+        }
+        
+        /**
+         * 次の問題へ進む関数
+         */
+        function goToNextProblem() {
+            currentProblemIndex++;
+            displayProblem();
+        }
+
+        /**
+         * タイマーを開始する関数
+         */
+        function startTimer() {
+            timerEl.textContent = `残り: ${timeLeft}秒`;
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerEl.textContent = `残り: ${timeLeft}秒`;
+                if (timeLeft <= 0) {
+                    showResults();
+                }
+            }, 1000);
+        }
+
+        /**
+         * 結果を表示する関数
+         */
+        function showResults() {
+            clearInterval(timerInterval);
+
+            while (userAnswers.length < problems.length) {
+                userAnswers.push("");
+            }
+
+            quizScreen.classList.add('hidden');
+            resultsScreen.classList.remove('hidden');
+            
+            let correctCount = 0;
+            resultsDetailsEl.innerHTML = ''; 
+
+            problems.forEach((problem, index) => {
+                const userAnswer = parseFloat(userAnswers[index]);
+                const correctAnswer = correctAnswers[index];
+                const isCorrect = userAnswer === correctAnswer;
+                
+                if (isCorrect) correctCount++;
+
+                const resultItem = document.createElement('div');
+                resultItem.className = `p-3 rounded-lg flex justify-between items-center text-sm ${isCorrect ? 'bg-green-500/10' : 'bg-red-500/10'}`;
+                const displayProblemString = problem.replace(/\*/g, '×').replace(/\//g, '÷');
+                resultItem.innerHTML = `
+                    <span class="font-medium text-slate-300">${index + 1}. ${displayProblemString}</span>
+                    <div class="text-right">
+                        <span class="block font-semibold ${isCorrect ? 'text-green-400' : 'text-red-400'}">あなたの答え: ${userAnswers[index] === "" ? "無回答" : userAnswers[index]}</span>
+                        ${!isCorrect ? `<span class="block text-slate-400">正解: ${correctAnswer}</span>` : ''}
+                    </div>
+                `;
+                resultsDetailsEl.appendChild(resultItem);
+            });
+
+            scoreEl.textContent = `${correctCount} / ${problems.length}`;
+        }
+        
+        /**
+         * クイズをリスタートする関数
+         */
+        function restartQuiz() {
+            resultsScreen.classList.add('hidden');
+            setupScreen.classList.remove('hidden');
+            problems = [];
+            correctAnswers = [];
+            userAnswers = [];
+            currentProblemIndex = 0;
+            clearInterval(timerInterval);
+        }
+
+    </script>
+</body>
+</html>
+
